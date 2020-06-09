@@ -10,14 +10,31 @@ using System.Threading.Tasks;
 
 namespace SyncCollection
 {
+    class IaDownloadFormat
+    {
+        public string downloadFormat;
+        public string baseURL;
+        public string extensionType;
+
+        public IaDownloadFormat(string downloadFormat, string baseURL, string extensionType)
+        {
+            this.downloadFormat = downloadFormat ?? throw new ArgumentNullException(nameof(downloadFormat));
+            this.baseURL = baseURL ?? throw new ArgumentNullException(nameof(baseURL));
+            this.extensionType = extensionType ?? throw new ArgumentNullException(nameof(extensionType));
+        }
+    }
     class Program
     {
         const string Collection = "apple_ii_library_4am";
         const string Rows = "30000";
 
+        
         static void Main(string[] args)
         {
+            List<IaDownloadFormat> IaDownloadFormats = new List<IaDownloadFormat> { new IaDownloadFormat("Archive BitTorrent", "https://archive.org/download", "torrent"), new IaDownloadFormat("ZIP", "https://archive.org/compress", "zip") };
+
             string collection = Collection;
+            IaDownloadFormat downloadFormat = IaDownloadFormats[1];
             if (args.Length > 0)
             {
                 collection = args[0];
@@ -27,17 +44,17 @@ namespace SyncCollection
                 Console.WriteLine($"Using default collection {collection}");
             }
 
-            var task = MainAsync(collection);
+            var task = MainAsync(collection, downloadFormat);
             task.Wait();
         }
 
-        static async Task MainAsync(string collection)
+        static async Task MainAsync(string collection, IaDownloadFormat downloadFormat)
         {
             var searchResults = await GetSearchResults(collection);
 
             var localFileList = GetListOfAlreadyDownloadedFiles(collection);
 
-            DownloadFiles(searchResults, localFileList, collection);
+            DownloadFiles(searchResults, localFileList, collection, downloadFormat);
         }
 
         private static void ArchiveOldDownloadList(string collection)
@@ -57,7 +74,7 @@ namespace SyncCollection
         }
 
         private static void DownloadFiles(Dictionary<string, DateTime> searchResults,
-            Dictionary<string, DateTime> localFileList, string collection)
+            Dictionary<string, DateTime> localFileList, string collection, IaDownloadFormat downloadFormat)
         {
             ArchiveOldDownloadList(collection);
 
@@ -66,7 +83,7 @@ namespace SyncCollection
 
             try
             {
-                string resourceBase = "https://archive.org/compress";
+                string resourceBase = downloadFormat.baseURL;
                 WebClient client = new WebClient();
 
                 foreach (var indicatorToDownload in searchResults.Keys)
@@ -74,9 +91,17 @@ namespace SyncCollection
                     if (!localFileList.ContainsKey(indicatorToDownload) || searchResults[indicatorToDownload] >
                         localFileList[indicatorToDownload])
                     {
-                        currentlyDownloading = $"{collection}/{indicatorToDownload}.zip";
-
-                        var url = $"{resourceBase}/{indicatorToDownload}";
+                        currentlyDownloading = $"{collection}/{indicatorToDownload}.{downloadFormat.extensionType}";
+                        var url = "";
+                        if (downloadFormat.downloadFormat == "Archive BitTorrent")
+                        {
+                            url = $"{resourceBase}/{indicatorToDownload}/{indicatorToDownload}_archive.{downloadFormat.extensionType}";
+                        }
+                        else if (downloadFormat.downloadFormat == "ZIP")
+                        {
+                            url = $"{resourceBase}/{indicatorToDownload}";
+                        }
+                        
 
                         Console.WriteLine("Downloading {0}", currentlyDownloading);
                         Console.WriteLine("Downloading from {0}", url);
